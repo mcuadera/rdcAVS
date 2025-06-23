@@ -273,7 +273,7 @@ campagneApp <- function() {
                    h4("Campagne"),
                    uiOutput("campaign_monitoring"),
                    fluidRow(
-                       plotOutput("update_time_plot", height = "400px"),
+                       plotOutput("update_time_plot", height = "400px", click = "update_time_click"),
                        DTOutput("update_time_table")
                      )
           )
@@ -1608,10 +1608,11 @@ campagneApp <- function() {
 campaign_files(masques)
 
 output$update_time_plot <- renderPlot({
+  req(campaign_files())
+
   ggplot2::ggplot(
     campaign_files(),
-    ggplot2::aes(as.character(last_updated))
-  ) +
+    ggplot2::aes(x = last_updated)) +
     ggplot2::geom_bar(
       fill = "steelblue"
     ) +
@@ -1633,13 +1634,16 @@ output$update_time_plot <- renderPlot({
         ### Outputs ----
         #### Update table ----
         output$update_time_table <- DT::renderDT({
-          datatable(campaign_files() |>
-                      dplyr::select(province, antenne, zs, last_updated, web_view_link) |>
-                      dplyr::mutate(web_view_link = paste0('<a href="', web_view_link, '">', "Ouvrir", "</a>")),
-                    rownames = FALSE,
-                    colnames = c("Province", "Antenne", "Zone de Sante", "Derni\u00e8re Mise \u00e0 Jour", "URL"),
-                    escape = FALSE
-          )})
+          req(campaign_files())
+            datatable(campaign_files() |>
+                        dplyr::select(province, antenne, zs, last_updated, web_view_link) |>
+                        dplyr::mutate(web_view_link = paste0('<a href="', web_view_link, '">', "Ouvrir", "</a>")),
+                      rownames = FALSE,
+                      colnames = c("Province", "Antenne", "Zone de Sante", "Derni\u00e8re Mise \u00e0 Jour", "URL"),
+                      escape = FALSE
+            )
+          })
+
         #### Geographic table ----
         output$geo_table <- renderDT({
           datatable(
