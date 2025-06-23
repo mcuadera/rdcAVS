@@ -267,7 +267,18 @@ campagneApp <- function() {
               br(),
               br()
             ))
-          )
+          ),
+          # Monitoring tab ----
+          tabPanel("Monitoring",
+                   h4("Campagne"),
+                   uiOutput("campaign_monitoring"),
+                   fluidRow(
+                     column(
+                       8,
+                       plotOutput("update_time_plot", height = "400px", click = "update_time_plot_click"),
+                       tableOutput("update_time_table"),
+                     )
+                   ))
         ),
         tags$footer(
           style = "
@@ -1070,6 +1081,15 @@ campagneApp <- function() {
           )
         })
 
+        output$campaign_monitoring <- renderUI({
+          folders <- campaign_drive_folders()
+          selectInput(
+            "selected_campaign_monitoring",
+            "S\u00e9lectionnez le dossier de campagne pour le suivi",
+            choices = folders$name
+          )
+        })
+
         ###### Upload option for permissions table ----
         # Handle file upload
         observeEvent(input$upload_permissions, {
@@ -1584,6 +1604,60 @@ campagneApp <- function() {
           ))
           stopApp()
         })
+        # Observe the selected campaign for monitoring ----
+        observeEvent(input$selected_campaign_monitoring,
+                     {
+                       campaign_files <- googledrive::drive_ls(
+                         path = input$selected_campaign_monitoring,
+                         type = "spreadsheet",
+                         recursive = TRUE
+                       )
+
+                       campaign_files <- googledrive::drive_reveal(campaign_files,
+                                                                   what = "modifiedTime")
+                       campaign_files <- googledrive::drive_reveal(campaign_files,
+                                                                   what = "webViewLink")
+                       campaign_files <- campaign_files |>
+                         dplyr::mutate(last_updated = as.numeric(floor(difftime(Sys.Date(),
+                                                               modified_time,
+                                                               units = "days")))) |>
+                         dplyr::mutate(last_updated = as.integer(last_updated),
+                                       province = sub(".*_PROV_([^_]+_[^_]+)_AN_.*", "\\1", name),
+                                       antenne = sub(".*_AN_([^_]+)_ZS_.*", "\\1", name),
+                                       zs = sub(".*_ZS_([^_]+)$", "\\1", name)) |>
+                         dplyr::arrange(dplyr::desc(last_updated)) |>
+                         dplyr::select(name, province, antenne, zs, last_updated, web_view_link)
+
+                       output$update_time_plot <- renderPlot({
+                         ggplot2::ggplot(campaign_files,
+                                         ggplot2::aes(as.character(last_updated))) +
+                           ggplot2::geom_bar(
+                             fill = "steelblue"
+                           ) +
+                           ggplot2::labs(
+                             title = "Nombre de jours depuis la derni\u00e8re mise \u00e0 jour",
+                             x = "Jours depuis la derni\u00e8re mise \u00e0 jour",
+                             y = "Nombre de fichiers"
+                           ) +
+                           ggplot2::theme_minimal() +
+                           ggplot2::theme(
+                             plot.title = ggplot2::element_text(hjust = 0.5, size = 32, face = "bold"),
+                             axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 16),
+                             axis.text.y = ggplot2::element_text(size = 16),
+                             axis.title.x = ggplot2::element_text(size = 23),
+                             axis.title.y = ggplot2::element_text(size = 23)
+                           )
+                       })
+
+                       # output$update_time_table <- DT::renderDT({
+                       #   datatable(campaign_files |>
+                       #     dplyr::select(name, province, antenne, zs, last_updated, web_view_link) |>
+                       #     dplyr::mutate(web_view_link = paste0('<a href="', web_view_link, '">', "Ouvir", "</a>")),
+                       #     rownames = FALSE,
+                       #     colnames = c("Name", "Province", "Antenne", "Zone de Sante", "URL")
+                       #     )
+                       # })
+                       })
 
         ### Outputs ----
         #### Geographic table ----
